@@ -10,8 +10,10 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// MongoDB connection (Atlas or local fallback)
-const mongoURI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/helpdesk";
+// MongoDB connection (Atlas)
+const mongoURI =
+  process.env.MONGO_URI ||
+  "mongodb+srv://admin:admin123@cluster0.tt5iuo1.mongodb.net/helpdesk?retryWrites=true&w=majority";
 
 mongoose
   .connect(mongoURI)
@@ -130,5 +132,4 @@ app.post("/api/tickets/:id/comments", async (req, res) => {
 // Start server
 // =======================
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
 
