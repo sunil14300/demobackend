@@ -4,20 +4,23 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-// MongoDB connection
+// MongoDB connection (Atlas or local fallback)
+const mongoURI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/helpdesk";
+
 mongoose
-  .connect("mongodb://127.0.0.1:27017/helpdesk", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(mongoURI)
   .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+// =======================
+// Models
+// =======================
 
 // Ticket model
 const ticketSchema = new mongoose.Schema({
@@ -29,7 +32,21 @@ const ticketSchema = new mongoose.Schema({
 
 const Ticket = mongoose.model("Ticket", ticketSchema);
 
+// Comment model
+const commentSchema = new mongoose.Schema({
+  ticketId: { type: mongoose.Schema.Types.ObjectId, ref: "Ticket", required: true },
+  body: { type: String, required: true },
+  author: { type: String }, // optional: can be user's email or ID
+  createdAt: { type: Date, default: Date.now },
+});
+
+const Comment = mongoose.model("Comment", commentSchema);
+
+// =======================
 // Routes
+// =======================
+
+// Create a ticket
 app.post("/api/tickets", async (req, res) => {
   try {
     const ticket = new Ticket(req.body);
@@ -40,6 +57,7 @@ app.post("/api/tickets", async (req, res) => {
   }
 });
 
+// Get all tickets
 app.get("/api/tickets", async (req, res) => {
   try {
     const tickets = await Ticket.find().sort({ createdAt: -1 });
@@ -49,26 +67,19 @@ app.get("/api/tickets", async (req, res) => {
   }
 });
 
-app.put("/api/tickets/:id", async (req, res) => {
-  try {
-    const updatedTicket = await Ticket.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-    res.status(200).json(updatedTicket);
-  } catch (error) {
-    res.status(500).json({ message: "Error updating ticket", error });
-  }
-});
 // Get single ticket + comments
 app.get("/api/tickets/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid ticket ID" });
+  }
+
   try {
-    const ticket = await Ticket.findById(req.params.id);
+    const ticket = await Ticket.findById(id);
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 
     const comments = await Comment.find({ ticketId: ticket._id }).sort({ createdAt: 1 });
-
     res.json({ ticket, comments });
   } catch (err) {
     console.error(err);
@@ -76,5 +87,48 @@ app.get("/api/tickets/:id", async (req, res) => {
   }
 });
 
+// Update ticket
+app.put("/api/tickets/:id", async (req, res) => {
+  const { id } = req.params;
 
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid ticket ID" });
+  }
+
+  try {
+    const updatedTicket = await Ticket.findByIdAndUpdate(id, req.body, { new: true });
+    if (!updatedTicket) return res.status(404).json({ message: "Ticket not found" });
+    res.status(200).json(updatedTicket);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating ticket", error });
+  }
+});
+
+// Add comment to ticket
+app.post("/api/tickets/:id/comments", async (req, res) => {
+  const { id } = req.params;
+  const { body, author } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid ticket ID" });
+  }
+
+  try {
+    const ticket = await Ticket.findById(id);
+    if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+    const comment = new Comment({ ticketId: ticket._id, body, author });
+    const savedComment = await comment.save();
+
+    res.status(201).json(savedComment);
+  } catch (error) {
+    res.status(500).json({ message: "Error adding comment", error });
+  }
+});
+
+// =======================
+// Start server
+// =======================
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
