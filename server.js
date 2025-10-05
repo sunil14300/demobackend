@@ -9,6 +9,10 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.get("/", (req, res) => {
+  res.send("Backend is running!");
+});
+
 
 // MongoDB connection (Atlas)
 const mongoURI =
@@ -132,4 +136,5 @@ app.post("/api/tickets/:id/comments", async (req, res) => {
 // Start server
 // =======================
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
